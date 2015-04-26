@@ -1,0 +1,133 @@
+---
+title: "Practical Machine Learning"
+author: "Pallav Mishra"
+date: "Saturday, April 25, 2015"
+output: html_document
+---
+## Background 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project is available here : <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data is available at:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+We will store the data into respective files called "traindata" and "testdata"
+
+```{r}
+library(RCurl)
+
+traindata <- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", ssl.verifypeer=0L, followlocation=1L)
+train <- read.csv(text = traindata)
+testdata <- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", ssl.verifypeer=0L, followlocation=1L)
+test<- read.csv(text = testdata)
+
+```
+
+The training data has 19622 observations and 160 features as shown below
+
+```{r}
+dim(train)
+```
+
+```{r}
+table(train$classe)
+```
+
+## Exploratory Data Analysis
+### Creating Training and Test Sets
+
+```{r}
+library(caret)
+library(ggplot2)
+library(lattice)
+library(kernlab)
+library(randomForest)
+Trainptn <- createDataPartition(train$classe,p=.9,list=FALSE)
+traindata = train[Trainptn,]
+testdata = train[-Trainptn,]
+set.seed(6666)
+nzv <- nearZeroVar(traindata)
+trainnzv <- traindata[-nzv]
+testnzv <- testdata[-nzv]
+temptestnzv <- test[-nzv]
+
+dim(trainnzv)
+```
+`
+```{r}
+dim(testnzv)
+```
+
+```{r}
+dim(temptestnzv)
+```
+
+```{r}
+ftridx <- which(lapply(trainnzv,class) %in% c('numeric'))
+trainnzv1 <- preProcess(trainnzv[,ftridx], method=c('knnImpute'))
+ftridx
+```
+
+```{r}
+pred1 <- predict(trainnzv1, trainnzv[,ftridx])
+predtrain <- cbind(trainnzv$classe,pred1)
+names(predtrain)[1] <- 'classe'
+predtrain[is.na(predtrain)] <- 0
+
+pred2 <- predict(trainnzv1, testnzv[,ftridx])
+predtest <- cbind(testnzv$classe, pred2)
+names(predtest)[1] <- 'classe'
+predtest[is.na(predtest)] <- 0
+
+predpmltest <- predict(trainnzv1,temptestnzv[,ftridx] )
+
+
+dim(predtrain)
+```
+
+### Modeling
+
+Now that we have the training, test and validation sets created, we will fit the models
+
+```{r}
+model <- randomForest(classe~.,data=predtrain)
+
+predtrain1 <- predict(model, predtrain) 
+print(table(predtrain1, predtrain$classe))
+```
+
+```{r}
+training <- as.data.frame(table(predtrain1, predtrain$classe))
+predtest1 <- predict(model, predtest) 
+print(table(predtest1, predtest$classe))
+```
+
+```{r}
+str(predpmltest)
+```
+
+```{r}
+predanswers <- predict(model, predpmltest) 
+predanswers
+```
+## Results
+
+```{r}
+predanswers <- predict(model, predpmltest) 
+predanswers
+```
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(as.character(predanswers))
+```
